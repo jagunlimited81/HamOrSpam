@@ -55,6 +55,18 @@ class MVBEM:
     def hamOrSpam(self, email: str) -> str:
         email = email.split(' ')
         # https://www.kdnuggets.com/2020/07/spam-filter-python-naive-bayes-scratch.html#:~:text=Classifying%20A%20New%20Message 
+        p_ham = .5
+        p_spam = .5
+
+        for word in email:
+            if word in self.parameters_spam:
+                print("here")
+                p_spam *= self.parameters_spam[word]
+            if word in self.parameters_ham:
+                p_ham *= self.parameters_ham[word]
+        
+        print(p_ham)
+        print(p_spam)
         return "ham"
 
 
@@ -130,7 +142,7 @@ def main():
     print("\ncreating model...")
     model = MVBEM(train, test)
     
-    model.hamOrSpam("asdf")
+    model.hamOrSpam("")
 
 
 if __name__ == "__main__":
