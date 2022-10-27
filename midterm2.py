@@ -7,18 +7,54 @@ import os
 
 class MVBEM:
     def __init__(self, train, test):
-        self.train_data = train
-        self.test_data = test
+        # split data into words
+        self.train_data = [(a, b.split(" ")) for a, b in train]
+        print(self.train_data[0])
+        self.test_data = [(a, b.split(" ")) for a, b in test]
         self.vocabulary = []
-        for classification, data in self.test_data:
+
+        # split into labels
+        self.train_data_ham = [_ for label, _ in self.train_data if label == "ham"]
+        self.train_data_spam = [_ for label, _ in self.train_data if label == "spam"]
+
+        print(self.train_data_spam[0])
+
+        self.len_ham = len(self.train_data_ham)
+        self.len_spam = len(self.train_data_spam)
+
+        # Create Vocabulary
+        for label, data in self.test_data:
             for word in data:
                 self.vocabulary.append(word)
         self.vocabulary = list(set(self.vocabulary))
+        self.len_vocabulary = len(self.vocabulary)
 
-    def train(self, ):
-        pass
+        self.wordCountsHam = {}
+        self.wordCountsSpam = {}
+        for word in self.vocabulary:
+            self.wordCountsHam[word] = sum([1 for i in self.wordCountsHam if word in i])
+            self.wordCountsSpam[word] = sum([1 for i in self.wordCountsSpam if word in i])
+        # Initiate parameters
+        self.parameters_spam = {unique_word:0 for unique_word in self.vocabulary}
+        self.parameters_ham = {unique_word:0 for unique_word in self.vocabulary}
 
-    def hamOrSpam(self, email) -> str:
+        alpha = 1
+
+        # Calculate parameters
+        for word in self.vocabulary:
+            # sum up all occurences of the word 
+
+            self.n_word_given_spam = self.wordCountsSpam[word] # spam_messages already defined
+            self.p_word_given_spam = (self.n_word_given_spam + alpha) / (self.len_spam + alpha*self.len_vocabulary)
+            self.parameters_spam[word] = self.p_word_given_spam
+
+            self.n_word_given_ham = self.wordCountsHam[word] # ham_messages already defined
+            self.p_word_given_ham = (self.n_word_given_ham + alpha) / (self.len_ham + alpha*self.len_vocabulary)
+            self.parameters_ham[word] = self.p_word_given_ham
+
+    def hamOrSpam(self, email: str) -> str:
+        email = email.split(' ')
+        # https://www.kdnuggets.com/2020/07/spam-filter-python-naive-bayes-scratch.html#:~:text=Classifying%20A%20New%20Message 
         return "ham"
 
 
@@ -93,8 +129,6 @@ def main():
 
     print("\ncreating model...")
     model = MVBEM(train, test)
-
-    model.train()
     
     model.hamOrSpam("asdf")
 
