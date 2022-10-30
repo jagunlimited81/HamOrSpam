@@ -5,12 +5,85 @@ import random
 import os
 
 
-class MVBEM:
+class model:
     def __init__(self, train, test):
+        self.train_raw_data = train
+        self.test_raw_data = test
+        self.parameters_spam = {}
+        self.parameters_ham = {}
+
+    def hamOrSpam(self, email: str):
+        email = email.split(' ')
+
+        p_ham = .5
+        p_spam = .5
+        for word in email:
+            if word in self.parameters_spam and self.parameters_spam[word] != 0:
+                p_spam *= self.parameters_spam[word]
+            if word in self.parameters_ham and self.parameters_ham[word] != 0:
+                p_ham *= self.parameters_ham[word]
+            while p_spam < 1/100 and p_ham < 1/100:
+                p_spam = p_spam * 10
+                p_ham = p_ham * 10
+        if p_ham > p_spam:
+            return "ham"
+        elif p_ham < p_spam:
+            return "spam"
+        else:
+            #print("There was a tie")
+            return "tie"
+
+    def train(self):
+        pass
+
+    def test(self):
+        true_positive = 0
+        true_negative = 0
+        false_positive = 0
+        false_negative = 0
+        for answer, email in self.test_raw_data:
+            model_answer = self.hamOrSpam(email)
+
+            # If we got the correct answer, TRUE answers only
+            if model_answer == answer:
+                if model_answer == "spam":
+                    true_positive += 1
+                elif model_answer == "ham":
+                    true_negative += 1
+
+            else:
+                if model_answer == "spam":
+                    false_positive += 1
+                elif model_answer == "ham":
+                    false_negative += 1
+
+        print("\nResults:")
+        print(f"  true positives: {true_positive}")
+        print(f"  false negatives: {false_negative}")
+        print(f"  true negatives: {true_negative}")
+        print(f"  false positives: {false_positive}")
+        print()
+
+        precision = true_positive / \
+            (true_positive + false_positive) if true_positive != 0 and true_negative != 0 else 0
+        recall = true_positive / \
+            (true_positive + false_negative) if true_positive != 0 and false_negative != 0 else 0
+        f1 = 2 * ((precision * recall) / (precision + recall)
+                  )if precision != 0 and recall != 0 else 0
+        accuracy = (true_positive + true_negative) / len(self.test_raw_data)
+
+        print("Statistics:")
+        print(f"  Precision: {precision}")
+        print(f"  Recall: {recall}")
+        print(f"  F1: {f1}")
+        print(f"  Accuracy: {accuracy}")
+        print()
+
+
+class MNEM(model):
+    def train(self):
         # split data into words
-        self.train_data = [(a, b.split(" ")) for a, b in train]
-        # print(self.train_data[0])
-        self.test_data = [(a, b.split(" ")) for a, b in test]
+        self.train_data = [(a, b.split(" ")) for a, b in self.train_raw_data]
 
         # split into labels
         self.train_data_ham = [_ for label,
@@ -25,7 +98,7 @@ class MVBEM:
 
         # Create Vocabulary
         self.vocabulary = []
-        for label, data in self.test_data:
+        for label, data in self.train_data:
             for word in data:
                 self.vocabulary.append(word)
         self.vocabulary = list(set(self.vocabulary))
@@ -49,8 +122,6 @@ class MVBEM:
 
         # Calculate parameters
         for word in self.vocabulary:
-            # sum up all occurences of the word
-
             # spam_messages already defined
             self.n_word_given_spam = self.wordCountsSpam[word]
             self.p_word_given_spam = (
@@ -63,26 +134,41 @@ class MVBEM:
                 self.n_word_given_ham + alpha) / (self.len_ham + alpha*self.len_vocabulary)
             self.parameters_ham[word] = self.p_word_given_ham
 
-    def hamOrSpam(self, email: str) -> str:
-        email = email.split(' ')
 
-        p_ham = .5
-        p_spam = .5
-        for word in email:
-            if word in self.parameters_spam:
-                p_spam *= self.parameters_spam[word]
-            if word in self.parameters_ham:
-                p_ham *= self.parameters_ham[word]
-            while p_spam < 1/100 and p_ham < 1/100:
-                p_spam = p_spam * 10
-                p_ham = p_ham * 10
-        if p_ham > p_spam:
-            return "ham"
-        elif p_ham < p_spam:
-            return "spam"
-        else:
-            print("There was a tie")
-            return "tie"
+class MVBEM(model):
+    def train(self):
+        self.train_data = [(a, b.split(" ")) for a, b in self.train_raw_data]
+        
+        # split into labels
+        self.train_data_ham = [_ for label,
+                               _ in self.train_data if label == "ham"]
+        self.train_data_spam = [_ for label,
+                                _ in self.train_data if label == "spam"]
+
+        # get the number of total words
+        self.len_ham = sum([len(l) for l in self.train_data_ham])
+        self.len_spam = sum([len(l) for l in self.train_data_spam])
+
+        # Create Vocabulary
+        self.vocabulary = []
+        for label, data in self.train_data:
+            for word in data:
+                self.vocabulary.append(word)
+        self.vocabulary = list(set(self.vocabulary))
+        self.len_vocabulary = len(self.vocabulary)
+
+        self.hamOrSpam_dict = {}
+        for word in self.vocabulary:
+            word_count_ham = 0
+            word_count_spam = 0
+            for label, email in self.train_data:
+                if label == "ham" and word in email:
+                    word_count_ham += 1
+                elif label == "spam" and word in email:
+                    word_count_spam += 1
+
+            self.parameters_ham[word] = word_count_ham / 500
+            self.parameters_spam[word] = word_count_spam / 500
 
 
 def load_datasets():
@@ -155,47 +241,20 @@ def main():
     train, test = load_datasets()
 
     print("\ncreating model...")
-    model = MVBEM(train, test)
+    modelMNEM = MNEM(train, test)
+    modelMVBEM = MVBEM(train, test)
+
+    print("\ntraining model")
+    modelMNEM.train()
+    modelMVBEM.train()
 
     print("\ntesting model...")
-    true_positive = 0
-    true_negative = 0
-    false_positive = 0
-    false_negative = 0
-    for answer, email in test:
-        model_answer = model.hamOrSpam(email)
 
-        # If we got the correct answer, TRUE answers only
-        if model_answer == answer:
-            if model_answer == "spam":
-                true_positive += 1
-            elif model_answer == "ham":
-                true_negative += 1
-        
-        else:
-            if model_answer == "spam":
-                false_positive += 1
-            elif model_answer == "ham":
-                false_negative += 1
+    print("\nModel 2: The Multinomial Event Model")
+    modelMNEM.test()
 
-    print("\nResults:")
-    print(f"  true positives: {true_positive}")
-    print(f"  false negatives: {false_negative}")
-    print(f"  true negatives: {true_negative}")
-    print(f"  false positives: {false_positive}")
-    print()
-
-    precision = true_positive/(true_positive + false_positive)
-    recall = true_positive/(true_positive + false_negative)
-    f1 = 2 * ((precision * recall) / (precision + recall))
-    accuracy = (true_positive + true_negative) / len(test)
-
-    print("Statistics:")
-    print(f"  Precision: {precision}")
-    print(f"  Recall: {recall}")
-    print(f"  F1: {f1}")
-    print(f"  Accuracy: {accuracy}")
-    print()
+    print("\nModel 1: The Multi-variate Bernoulli Event Model")
+    modelMVBEM.test()
 
 
 if __name__ == "__main__":
