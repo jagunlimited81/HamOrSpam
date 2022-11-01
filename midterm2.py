@@ -1,6 +1,6 @@
 # Authors
 #   - Jared Tremlbey
-#   - Kaleb
+#   - Kaleb Liang
 import random
 import os
 
@@ -18,13 +18,17 @@ class model:
         p_ham = .5
         p_spam = .5
         for word in email:
-            if word in self.parameters_spam and self.parameters_spam[word] != 0:
+            if word in self.parameters_spam:
                 p_spam *= self.parameters_spam[word]
-            if word in self.parameters_ham and self.parameters_ham[word] != 0:
+            if word in self.parameters_ham:
                 p_ham *= self.parameters_ham[word]
+
+            # Round Numbers ( helps prevent numbers from getting too small )
             while p_spam < 1/100 and p_ham < 1/100:
                 p_spam = p_spam * 10
                 p_ham = p_ham * 10
+
+        # Determine the value
         if p_ham > p_spam:
             return "ham"
         elif p_ham < p_spam:
@@ -57,26 +61,26 @@ class model:
                 elif model_answer == "ham":
                     false_negative += 1
 
-        print("\nResults:")
-        print(f"  true positives: {true_positive}")
-        print(f"  false negatives: {false_negative}")
-        print(f"  true negatives: {true_negative}")
-        print(f"  false positives: {false_positive}")
+        print("\n  Results:")
+        print(f"    true positives: {true_positive}")
+        print(f"    false negatives: {false_negative}")
+        print(f"    true negatives: {true_negative}")
+        print(f"    false positives: {false_positive}")
         print()
 
         precision = true_positive / \
-            (true_positive + false_positive) if true_positive != 0 and true_negative != 0 else 0
+            (true_positive + false_positive) if true_positive != 0 or true_negative != 0 else 0
         recall = true_positive / \
-            (true_positive + false_negative) if true_positive != 0 and false_negative != 0 else 0
+            (true_positive + false_negative) if true_positive != 0 or false_negative != 0 else 0
         f1 = 2 * ((precision * recall) / (precision + recall)
                   )if precision != 0 and recall != 0 else 0
         accuracy = (true_positive + true_negative) / len(self.test_raw_data)
 
-        print("Statistics:")
-        print(f"  Precision: {precision}")
-        print(f"  Recall: {recall}")
-        print(f"  F1: {f1}")
-        print(f"  Accuracy: {accuracy}")
+        print("  Statistics:")
+        print(f"    Precision: {precision}")
+        print(f"    Recall: {recall}")
+        print(f"    F1: {f1}")
+        print(f"    Accuracy: {accuracy}")
         print()
 
 
@@ -138,7 +142,7 @@ class MNEM(model):
 class MVBEM(model):
     def train(self):
         self.train_data = [(a, b.split(" ")) for a, b in self.train_raw_data]
-        
+
         # split into labels
         self.train_data_ham = [_ for label,
                                _ in self.train_data if label == "ham"]
@@ -158,17 +162,27 @@ class MVBEM(model):
         self.len_vocabulary = len(self.vocabulary)
 
         self.hamOrSpam_dict = {}
+        alpha = 1
         for word in self.vocabulary:
-            word_count_ham = 0
-            word_count_spam = 0
-            for label, email in self.train_data:
-                if label == "ham" and word in email:
-                    word_count_ham += 1
-                elif label == "spam" and word in email:
-                    word_count_spam += 1
+            email_count_with_word_ham = 0
+            email_count_with_word_spam = 0
 
-            self.parameters_ham[word] = word_count_ham / 500
-            self.parameters_spam[word] = word_count_spam / 500
+            # count each email that the word appeared in
+            for label, email in self.train_data:
+                word_in_email = word in email
+
+                if label == "ham" and word_in_email:
+                    email_count_with_word_ham += 1
+                elif label == "spam" and word_in_email:
+                    email_count_with_word_spam += 1
+
+            self.p_word_given_ham = (
+                email_count_with_word_ham + alpha) / (500 + 2 * alpha)
+            self.parameters_ham[word] = self.p_word_given_ham
+
+            self.p_word_given_spam = (
+                email_count_with_word_spam + alpha) / (500 + 2 * alpha)
+            self.parameters_spam[word] = self.p_word_given_spam
 
 
 def load_datasets():
@@ -241,20 +255,20 @@ def main():
     train, test = load_datasets()
 
     print("\ncreating model...")
-    modelMNEM = MNEM(train, test)
     modelMVBEM = MVBEM(train, test)
+    modelMNEM = MNEM(train, test)
 
-    print("\ntraining model")
-    modelMNEM.train()
+    print("\ntraining model...")
     modelMVBEM.train()
+    modelMNEM.train()
 
     print("\ntesting model...")
 
-    print("\nModel 2: The Multinomial Event Model")
-    modelMNEM.test()
-
     print("\nModel 1: The Multi-variate Bernoulli Event Model")
     modelMVBEM.test()
+
+    print("\nModel 2: The Multinomial Event Model")
+    modelMNEM.test()
 
 
 if __name__ == "__main__":
